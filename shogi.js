@@ -81,7 +81,7 @@
   document.body.innerHTML = `
     <div class="titleblock">
       <h1>Shogi</h1>
-      <p class="jp">将棋 &middot; two players, one board</p>
+      <p class="jp"> TWO PLAYERS  -- ONE BOARD </p>
     </div>
     <div id="statusBar">
       <div id="status">Black's turn.</div>
@@ -95,7 +95,7 @@
       <b>S</b> Silver General &nbsp; <b>N</b> Knight &nbsp; <b>L</b> Lance &nbsp; <b>P</b> Pawn
       <br>
       A piece marked with a <span class="plus">+</span> has promoted. Captured pieces join your hand
-      below the board — click one, then click an empty square to drop it back into play.
+      below the board, click one, then click an empty square to drop it back into play.
     </div>
     <div class="modal-overlay hidden" id="promoModal">
       <div class="modal-card">
