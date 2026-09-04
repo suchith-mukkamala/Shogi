@@ -2,6 +2,10 @@
 (function () {
   "use strict";
 
+  // =========================================================
+  // 1. PAGE CONSTRUCTION — styles, fonts, DOM — all from JS
+  // =========================================================
+
   document.title = "Shogi";
 
   const meta = document.createElement("meta");
@@ -49,13 +53,24 @@
       font-family:'Shippori Mincho', Georgia, serif; font-size:0.95rem;
       color: var(--ink-soft); letter-spacing:0.3em; margin:0;
     }
-    #statusBar{ margin:16px 0 10px; min-height:30px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:center; }
+    #setupBar{
+      display:flex; align-items:center; gap:16px; flex-wrap:wrap; justify-content:center;
+      margin-top: 14px; padding: 10px 18px; border:1px solid var(--line); border-radius:6px;
+      background: rgba(255,255,255,0.3); font-size:0.86rem;
+    }
+    #setupBar label{ display:flex; align-items:center; gap:6px; color: var(--ink-soft); }
+    #setupBar select{
+      font-family:'Zen Kaku Gothic New', sans-serif; font-size:0.86rem; padding:4px 8px;
+      border-radius:4px; border:1px solid var(--line); background:#fbf3e3; color: var(--ink);
+    }
+    #statusBar{ margin:14px 0 10px; min-height:30px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:center; }
     #status{
       font-family:'Shippori Mincho', Georgia, serif; font-size:1.15rem; font-weight:500;
       padding:6px 22px; border:1px solid var(--line); border-radius:3px; background: rgba(255,255,255,0.35);
     }
     #status.check{ color: var(--seal); border-color: var(--seal); font-weight:700; }
     #status.over{ color: var(--seal); font-weight:700; }
+    #status.thinking{ color: var(--ink-soft); font-style: italic; }
     button{
       font-family:'Zen Kaku Gothic New', sans-serif; font-weight:700; font-size:0.88rem;
       letter-spacing:0.04em; border:none; cursor:pointer; padding:8px 18px; border-radius:999px;
@@ -81,22 +96,50 @@
   document.body.innerHTML = `
     <div class="titleblock">
       <h1>Shogi</h1>
-      <p class="jp"> TWO PLAYERS  -- ONE BOARD </p>
+      <p class="jp">TWO PLAYERS - ONE BOARD</p>
     </div>
+
+    <div id="setupBar">
+      <label>Mode
+        <select id="modeSelect">
+          <option value="pvp">Two Players</option>
+          <option value="cpu">Vs Computer</option>
+        </select>
+      </label>
+      <label id="sideLabel" style="display:none;">Your side
+        <select id="sideSelect">
+          <option value="black">Black (moves first)</option>
+          <option value="white">White (moves second)</option>
+        </select>
+      </label>
+      <label id="difficultyLabel" style="display:none;">Difficulty
+        <select id="difficultySelect">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </label>
+    </div>
+
     <div id="statusBar">
       <div id="status">Black's turn.</div>
       <button id="resetBtn">New Game</button>
     </div>
+
     <div id="boardWrap">
       <canvas id="board"></canvas>
     </div>
+
     <div id="legend">
       <b>K</b> King &nbsp; <b>R</b> Rook &nbsp; <b>B</b> Bishop &nbsp; <b>G</b> Gold General &nbsp;
       <b>S</b> Silver General &nbsp; <b>N</b> Knight &nbsp; <b>L</b> Lance &nbsp; <b>P</b> Pawn
       <br>
       A piece marked with a <span class="plus">+</span> has promoted. Captured pieces join your hand
-      below the board, click one, then click an empty square to drop it back into play.
+      below the board; click one, then click an empty square to drop it back into play.
+      <br>
+      Mode and difficulty changes apply on the next New Game.
     </div>
+
     <div class="modal-overlay hidden" id="promoModal">
       <div class="modal-card">
         <p>Promote this piece?</p>
@@ -107,6 +150,18 @@
       </div>
     </div>
   `;
+
+  const modeSelect = document.getElementById("modeSelect");
+  const sideSelect = document.getElementById("sideSelect");
+  const difficultySelect = document.getElementById("difficultySelect");
+  const sideLabel = document.getElementById("sideLabel");
+  const difficultyLabel = document.getElementById("difficultyLabel");
+
+  modeSelect.addEventListener("change", () => {
+    const show = modeSelect.value === "cpu";
+    sideLabel.style.display = show ? "flex" : "none";
+    difficultyLabel.style.display = show ? "flex" : "none";
+  });
 
   // =========================================================
   // 2. LAYOUT CONSTANTS
@@ -316,11 +371,126 @@
   }
 
   // =========================================================
-  // 4. GAME STATE
+  // 4. COMPUTER OPPONENT (minimax + alpha-beta + iterative deepening)
+  // =========================================================
+
+  const BASE_VALUE = { P:1, L:3, N:4, S:5, G:6, B:8, R:10, K:0 };
+  const PROMOTED_VALUE = { P:6, L:6, N:6, S:6, B:10, R:12 };
+  const DIFFICULTY = {
+    easy:   { depth:0, timeMs:0 },    // 0 = pure random, no search
+    medium: { depth:2, timeMs:600 },
+    hard:   { depth:3, timeMs:1800 }
+  };
+
+  function pieceValue(p){ return p.promoted ? PROMOTED_VALUE[p.type] : BASE_VALUE[p.type]; }
+
+  function evaluate(bd, hnds, forPlayer){
+    let score = 0;
+    for (let r=0;r<9;r++) for (let c=0;c<9;c++){
+      const p = bd[r][c];
+      if (p){ const v = pieceValue(p); score += (p.owner === forPlayer ? v : -v); }
+    }
+    for (const t of HAND_ORDER){
+      score += hnds[forPlayer][t] * BASE_VALUE[t];
+      score -= hnds[other(forPlayer)][t] * BASE_VALUE[t];
+    }
+    return score;
+  }
+
+  function applySim(bd, hnds, player, move){
+    const nb = bd.map(row => row.map(cell => cell ? Object.assign({}, cell) : null));
+    const nh = { black: Object.assign({}, hnds.black), white: Object.assign({}, hnds.white) };
+    if (move.drop){
+      nh[player][move.drop]--;
+      nb[move.to[0]][move.to[1]] = { type: move.drop, owner: player, promoted:false };
+    } else {
+      const [fr,fc] = move.from, [tr,tc] = move.to;
+      const piece = Object.assign({}, nb[fr][fc]);
+      const captured = nb[tr][tc];
+      if (captured){ nh[player][captured.type] = (nh[player][captured.type] || 0) + 1; }
+      nb[fr][fc] = null;
+      piece.promoted = piece.promoted || move.promote;
+      nb[tr][tc] = piece;
+    }
+    return { nb, nh };
+  }
+
+  function moveScore(m, bd){
+    let s = 0;
+    if (!m.drop){
+      const target = bd[m.to[0]][m.to[1]];
+      if (target) s += pieceValue(target) * 10; // capture ordering
+      if (m.promote) s += 3;
+    } else {
+      s -= 1; // search drops after board moves
+    }
+    return s;
+  }
+  function orderMoves(moves, bd){ moves.sort((a,b) => moveScore(b,bd) - moveScore(a,bd)); }
+
+  // Negamax with alpha-beta. Interior nodes skip the (expensive, rare-impact)
+  // pawn-drop-checkmate check for speed; the root always uses the full,
+  // rule-correct move list so the move actually played is always legal.
+  function negamax(bd, hnds, player, depth, alpha, beta, deadline){
+    if (depth === 0 || Date.now() > deadline){
+      return evaluate(bd, hnds, player);
+    }
+    const moves = allLegalMoves(bd, hnds, player, false);
+    if (moves.length === 0){
+      return isInCheck(bd, player) ? (-100000 - depth) : 0;
+    }
+    orderMoves(moves, bd);
+    let best = -Infinity;
+    for (const m of moves){
+      const { nb, nh } = applySim(bd, hnds, player, m);
+      const val = -negamax(nb, nh, other(player), depth-1, -beta, -alpha, deadline);
+      if (val > best) best = val;
+      if (best > alpha) alpha = best;
+      if (alpha >= beta) break; // prune
+    }
+    return best;
+  }
+
+  function computeAIMove(bd, hnds, player, difficulty){
+    const settings = DIFFICULTY[difficulty] || DIFFICULTY.medium;
+    const rootMoves = allLegalMoves(bd, hnds, player, true);
+    if (rootMoves.length === 0) return null;
+    if (settings.depth === 0){
+      return rootMoves[Math.floor(Math.random() * rootMoves.length)];
+    }
+    const deadline = Date.now() + settings.timeMs;
+    let bestMove = null;
+    for (let d=1; d<=settings.depth; d++){
+      orderMoves(rootMoves, bd);
+      let alpha = -Infinity, beta = Infinity;
+      let currentBest = null, currentBestScore = -Infinity, timedOut = false;
+      for (const m of rootMoves){
+        if (Date.now() > deadline){ timedOut = true; break; }
+        const { nb, nh } = applySim(bd, hnds, player, m);
+        const val = -negamax(nb, nh, other(player), d-1, -beta, -alpha, deadline);
+        if (val > currentBestScore){ currentBestScore = val; currentBest = m; }
+        if (currentBestScore > alpha) alpha = currentBestScore;
+      }
+      if (!timedOut && currentBest){ bestMove = currentBest; }
+      else break;
+    }
+    if (!bestMove) bestMove = rootMoves[Math.floor(Math.random() * rootMoves.length)];
+    return bestMove;
+  }
+
+  // =========================================================
+  // 5. GAME STATE
   // =========================================================
 
   let board, hands, turn, selected, candidateMoves, gameOver, winner, statusMsg, lastMove, pendingMatches;
   let whiteHandSlots = [], blackHandSlots = [];
+  let mode = "pvp";          // 'pvp' or 'cpu'
+  let humanSide = "black";
+  let difficulty = "medium";
+  let aiThinking = false;
+
+  function aiSide(){ return other(humanSide); }
+  function isAITurn(){ return mode === "cpu" && turn === aiSide() && !gameOver; }
 
   function initialBoard(){
     const b = Array.from({length:9}, () => Array(9).fill(null));
@@ -341,6 +511,10 @@
   }
 
   function newGame(){
+    mode = modeSelect.value;
+    humanSide = sideSelect.value;
+    difficulty = difficultySelect.value;
+
     board = initialBoard();
     hands = {
       black: {P:0,L:0,N:0,S:0,G:0,B:0,R:0},
@@ -353,8 +527,10 @@
     winner = null;
     lastMove = null;
     pendingMatches = null;
+    aiThinking = false;
     statusMsg = "Black's turn.";
     render();
+    maybeTriggerAI();
   }
 
   function movesFromSelection(){
@@ -418,14 +594,32 @@
       } else {
         statusMsg = cap(turn) + " has no legal moves. Draw.";
       }
-    } else {
-      statusMsg = chk ? (cap(turn) + " is in check!") : (cap(turn) + "'s turn.");
+      render();
+      return;
     }
+    statusMsg = chk ? (cap(turn) + " is in check!") : (cap(turn) + "'s turn.");
     render();
+    maybeTriggerAI();
+  }
+
+  function maybeTriggerAI(){
+    if (!isAITurn()) return;
+    aiThinking = true;
+    statusMsg = "Computer is thinking...";
+    render();
+    setTimeout(runAITurn, 250);
+  }
+
+  function runAITurn(){
+    if (gameOver){ aiThinking = false; return; }
+    const move = computeAIMove(board, hands, turn, difficulty);
+    aiThinking = false;
+    if (!move){ render(); return; } // shouldn't happen: endTurn already checked for legal moves
+    applyMoveCommit(move);
   }
 
   // =========================================================
-  // 5. MOUSE INTERACTION
+  // 6. MOUSE INTERACTION
   // =========================================================
 
   function getCanvasCoords(evt){
@@ -460,7 +654,7 @@
   }
 
   canvas.addEventListener("click", (e) => {
-    if (gameOver || pendingMatches) return;
+    if (gameOver || pendingMatches || aiThinking || isAITurn()) return;
     const { x, y } = getCanvasCoords(e);
     const zone = hitTest(x, y);
     if (!zone){ clearSelection(); render(); return; }
@@ -519,7 +713,7 @@
   document.getElementById("resetBtn").addEventListener("click", newGame);
 
   // =========================================================
-  // 6. RENDERING (pieces are pentagons, drawn with canvas paths)
+  // 7. RENDERING (pieces are pentagons, drawn with canvas paths)
   // =========================================================
 
   function drawPentagonPath(c, size){
@@ -692,7 +886,9 @@
     ctx.font = "13px 'Zen Kaku Gothic New', sans-serif";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    ctx.fillText(cap(player) + "'s hand", boardX, y + 8);
+    let label = cap(player) + "'s hand";
+    if (mode === "cpu" && player === aiSide()) label += " (computer)";
+    ctx.fillText(label, boardX, y + 8);
     ctx.restore();
 
     const slots = [];
@@ -734,8 +930,9 @@
   function updateStatusDOM(){
     const el = document.getElementById("status");
     el.textContent = statusMsg;
-    el.classList.remove("check","over");
-    if (gameOver) el.classList.add("over");
+    el.classList.remove("check","over","thinking");
+    if (aiThinking) el.classList.add("thinking");
+    else if (gameOver) el.classList.add("over");
     else if (statusMsg.indexOf("check") !== -1) el.classList.add("check");
   }
 
@@ -752,7 +949,7 @@
   }
 
   // =========================================================
-  // 7. START
+  // 8. START
   // =========================================================
   newGame();
 })();
