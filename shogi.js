@@ -3,10 +3,10 @@
   "use strict";
 
   // =========================================================
-  // 1. PAGE CONSTRUCTION — styles, fonts, DOM — all from JS
+  // 1. PAGE CONSTRUCTION
   // =========================================================
 
-  document.title = "Shogi";
+  document.title = "Shogi Games";
 
   const meta = document.createElement("meta");
   meta.name = "viewport";
@@ -33,6 +33,7 @@
     }
     *{box-sizing:border-box;}
     html,body{margin:0;padding:0;}
+    .hidden{ display:none !important; }
     body{
       background: var(--paper);
       background-image:
@@ -52,6 +53,25 @@
     .jp{
       font-family:'Shippori Mincho', Georgia, serif; font-size:0.95rem;
       color: var(--ink-soft); letter-spacing:0.3em; margin:0;
+    }
+    #gameChoices{
+      display:flex; gap:18px; flex-wrap:wrap; justify-content:center;
+      margin-top:28px; max-width:760px;
+    }
+    .gameCard{
+      width:220px; border:1px solid var(--line); border-radius:10px;
+      background: rgba(255,255,255,0.35); padding:18px 16px; text-align:center;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .gameCard:not(.disabled):hover{ transform: translateY(-3px); box-shadow: 0 8px 18px rgba(74,50,32,0.18); }
+    .gameCard h2{
+      font-family:'Shippori Mincho', Georgia, serif; font-size:1.25rem; margin:0 0 8px 0; color: var(--walnut);
+    }
+    .gameCard p{ font-size:0.85rem; color: var(--ink-soft); line-height:1.5; min-height:3.5em; }
+    .gameCard.disabled{ opacity:0.55; }
+    .gameCard .soon{
+      display:block; font-size:0.7rem; letter-spacing:0.05em; color: var(--seal);
+      margin-top:2px; font-weight:700;
     }
     #setupBar{
       display:flex; align-items:center; gap:16px; flex-wrap:wrap; justify-content:center;
@@ -78,13 +98,18 @@
     }
     button:hover{ background: var(--seal-soft); transform: translateY(-1px); }
     button:active{ transform: translateY(0); }
+    button:disabled{ background:#b7a68e; cursor:default; transform:none; }
+    .linkBtn{
+      background:transparent; color: var(--ink-soft); padding:4px 8px; border-radius:4px;
+      font-weight:500; text-decoration:underline; margin-bottom:6px;
+    }
+    .linkBtn:hover{ background: rgba(0,0,0,0.05); color: var(--ink); transform:none; }
     #boardWrap{ position:relative; filter: drop-shadow(0 10px 22px rgba(40,25,10,0.28)); }
     canvas{ display:block; touch-action:none; cursor:pointer; }
     #legend{ margin-top:18px; max-width:560px; text-align:center; font-size:0.82rem; line-height:1.7; color: var(--ink-soft); }
     #legend b{ color: var(--ink); }
     #legend .plus{ color: var(--seal); font-weight:700; }
     .modal-overlay{ position:fixed; inset:0; background: rgba(30,20,10,0.45); display:flex; align-items:center; justify-content:center; z-index:50; }
-    .modal-overlay.hidden{ display:none; }
     .modal-card{ background: var(--paper); border:1px solid var(--line); border-radius:6px; padding:22px 26px; text-align:center; box-shadow:0 12px 30px rgba(0,0,0,0.3); }
     .modal-card p{ font-family:'Shippori Mincho', Georgia, serif; font-size:1.1rem; margin:0 0 16px 0; }
     .modal-buttons{ display:flex; gap:12px; justify-content:center; }
@@ -94,63 +119,84 @@
   document.head.appendChild(style);
 
   document.body.innerHTML = `
-    <div class="titleblock">
-      <h1>Shogi</h1>
-      <p class="jp">TWO PLAYERS - ONE BOARD</p>
+    <div id="menuScreen">
+      <div class="titleblock">
+        <h1>Shogi Games</h1>
+        <p class="jp">将棋 &middot; choose your game</p>
+      </div>
+      <div id="gameChoices">
+        <div class="gameCard">
+          <h2>Shogi</h2>
+          <p>The full 9&times;9 game, all the classic pieces, drops and promotions.</p>
+          <button class="playBtn" data-game="shogi">Play</button>
+        </div>
+        <div class="gameCard">
+          <h2>Dobutsu Shogi</h2>
+          <p>A tiny 3&times;4 board built for a quick, playful match.</p>
+          <button class="playBtn" data-game="dobutsu">Play</button>
+        </div>
+        <div class="gameCard disabled">
+          <h2>Mini Shogi <span class="soon">5&times;5 &middot; coming soon</span></h2>
+          <p>A faster middle ground between the two, on the way.</p>
+          <button class="playBtn" disabled>Play</button>
+        </div>
+      </div>
     </div>
 
-    <div id="setupBar">
-      <label>Mode
-        <select id="modeSelect">
-          <option value="pvp">Two Players</option>
-          <option value="cpu">Vs Computer</option>
-        </select>
-      </label>
-      <label id="sideLabel" style="display:none;">Your side
-        <select id="sideSelect">
-          <option value="black">Black (moves first)</option>
-          <option value="white">White (moves second)</option>
-        </select>
-      </label>
-      <label id="difficultyLabel" style="display:none;">Difficulty
-        <select id="difficultySelect">
-          <option value="easy">Easy</option>
-          <option value="medium" selected>Medium</option>
-          <option value="hard">Hard</option>
-        </select>
-      </label>
-    </div>
+    <div id="gameScreen" class="hidden">
+      <div class="titleblock">
+        <h1 id="gameTitle">Shogi</h1>
+        <p class="jp" id="gameSubtitle">TWO PLAYERS - ONE BOARD</p>
+      </div>
+      <button id="backBtn" class="linkBtn">&larr; Change game</button>
 
-    <div id="statusBar">
-      <div id="status">Black's turn.</div>
-      <button id="resetBtn">New Game</button>
-    </div>
+      <div id="setupBar">
+        <label>Mode
+          <select id="modeSelect">
+            <option value="pvp">Two Players</option>
+            <option value="cpu">Vs Computer</option>
+          </select>
+        </label>
+        <label id="sideLabel" style="display:none;">Your side
+          <select id="sideSelect">
+            <option value="black">Black (moves first)</option>
+            <option value="white">White (moves second)</option>
+          </select>
+        </label>
+        <label id="difficultyLabel" style="display:none;">Difficulty
+          <select id="difficultySelect">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </label>
+      </div>
 
-    <div id="boardWrap">
-      <canvas id="board"></canvas>
-    </div>
+      <div id="statusBar">
+        <div id="status">Black's turn.</div>
+        <button id="resetBtn">New Game</button>
+      </div>
 
-    <div id="legend">
-      <b>K</b> King &nbsp; <b>R</b> Rook &nbsp; <b>B</b> Bishop &nbsp; <b>G</b> Gold General &nbsp;
-      <b>S</b> Silver General &nbsp; <b>N</b> Knight &nbsp; <b>L</b> Lance &nbsp; <b>P</b> Pawn
-      <br>
-      A piece marked with a <span class="plus">+</span> has promoted. Captured pieces join your hand
-      below the board; click one, then click an empty square to drop it back into play.
-      <br>
-      Mode and difficulty changes apply on the next New Game.
-    </div>
+      <div id="boardWrap">
+        <canvas id="board"></canvas>
+      </div>
 
-    <div class="modal-overlay hidden" id="promoModal">
-      <div class="modal-card">
-        <p>Promote this piece?</p>
-        <div class="modal-buttons">
-          <button id="promoYes">Promote</button>
-          <button class="secondary" id="promoNo">Keep as is</button>
+      <div id="legend"></div>
+
+      <div class="modal-overlay hidden" id="promoModal">
+        <div class="modal-card">
+          <p>Promote this piece?</p>
+          <div class="modal-buttons">
+            <button id="promoYes">Promote</button>
+            <button class="secondary" id="promoNo">Keep as is</button>
+          </div>
         </div>
       </div>
     </div>
   `;
 
+  const menuScreen = document.getElementById("menuScreen");
+  const gameScreen = document.getElementById("gameScreen");
   const modeSelect = document.getElementById("modeSelect");
   const sideSelect = document.getElementById("sideSelect");
   const difficultySelect = document.getElementById("difficultySelect");
@@ -163,73 +209,188 @@
     difficultyLabel.style.display = show ? "flex" : "none";
   });
 
-  // =========================================================
-  // 2. LAYOUT CONSTANTS
-  // =========================================================
-
-  const CELL = 58;
-  const BOARD_PX = CELL * 9;
-  const SIDE_PAD = 30;
-  const LABEL_PAD = 22;
-  const HAND_H = 96;
-  const GAP = 8;
-
-  const boardX = SIDE_PAD;
-  const boardY = HAND_H + GAP + LABEL_PAD;
-  const whiteHandY = 0;
-  const blackHandY = boardY + BOARD_PX + LABEL_PAD + GAP;
-
-  const CANVAS_W = BOARD_PX + SIDE_PAD * 2;
-  const CANVAS_H = blackHandY + HAND_H;
-
-  const canvas = document.getElementById("board");
-  canvas.width = CANVAS_W;
-  canvas.height = CANVAS_H;
-  const ctx = canvas.getContext("2d");
+  document.querySelectorAll(".playBtn[data-game]").forEach((btn) => {
+    btn.addEventListener("click", () => enterGame(btn.dataset.game));
+  });
+  document.getElementById("backBtn").addEventListener("click", () => {
+    gameScreen.classList.add("hidden");
+    menuScreen.classList.remove("hidden");
+  });
 
   // =========================================================
-  // 3. GAME RULES / MOVE GENERATION
+  // 2. GENERIC HELPERS + DIRECTION TABLES (shared by every game)
   // =========================================================
 
   const DIRS_DIAG = [[-1,-1],[-1,1],[1,-1],[1,1]];
   const DIRS_ORTHO = [[-1,0],[1,0],[0,-1],[0,1]];
   const DIRS_ALL8 = DIRS_ORTHO.concat(DIRS_DIAG);
-  const PROMOTABLE = ["P","L","N","S","B","R"];
-  const HAND_ORDER = ["R","B","G","S","N","L","P"];
 
   function other(p){ return p === "black" ? "white" : "black"; }
   function forwardDir(owner){ return owner === "black" ? -1 : 1; }
-  function inZone(owner, row){ return owner === "black" ? row <= 2 : row >= 6; }
   function goldSteps(dir){ return [[dir,-1],[dir,0],[dir,1],[0,-1],[0,1],[-dir,0]]; }
   function cap(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+  function isBackRank(owner, row, rows){ return owner === "black" ? row === 0 : row === rows - 1; }
 
-  function moveSetFor(piece){
-    const dir = forwardDir(piece.owner);
-    if (piece.promoted){
-      if (piece.type === "B") return { slides: DIRS_DIAG, steps: DIRS_ORTHO };
-      if (piece.type === "R") return { slides: DIRS_ORTHO, steps: DIRS_DIAG };
-      return { steps: goldSteps(dir) }; // +P +L +N +S move like Gold
+  // =========================================================
+  // 3. GAME CONFIGS — each one fully describes a variant's rules
+  // =========================================================
+
+  let CFG = null; // the active game's config; set by enterGame()
+
+  const SHOGI_CONFIG = {
+    id: "shogi", label: "Shogi",
+    ROWS: 9, COLS: 9, cellSize: 58,
+    royalType: "K", hasTryRule: false, noDrawOnStalemate: false, showStarPoints: true,
+    handOrder: ["R","B","G","S","N","L","P"],
+    legend: `<b>K</b> King &nbsp; <b>R</b> Rook &nbsp; <b>B</b> Bishop &nbsp; <b>G</b> Gold General &nbsp;
+      <b>S</b> Silver General &nbsp; <b>N</b> Knight &nbsp; <b>L</b> Lance &nbsp; <b>P</b> Pawn
+      <br>A piece marked with a <span class="plus">+</span> has promoted.`,
+    baseValue: { P:1, L:3, N:4, S:5, G:6, B:8, R:10, K:0 },
+    promotedValue: { P:6, L:6, N:6, S:6, B:10, R:12 },
+    difficulty: {
+      easy:   { depth:0, timeMs:0 },
+      medium: { depth:2, timeMs:600 },
+      hard:   { depth:3, timeMs:1800 }
+    },
+    initialBoard(){
+      const b = Array.from({length:9}, () => Array(9).fill(null));
+      const back = ["L","N","S","G","K","G","S","N","L"];
+      for (let c=0;c<9;c++){
+        b[0][c] = { type: back[c], owner:"white", promoted:false };
+        b[8][c] = { type: back[c], owner:"black", promoted:false };
+      }
+      b[1][1] = { type:"R", owner:"white", promoted:false };
+      b[1][7] = { type:"B", owner:"white", promoted:false };
+      b[7][1] = { type:"B", owner:"black", promoted:false };
+      b[7][7] = { type:"R", owner:"black", promoted:false };
+      for (let c=0;c<9;c++){
+        b[2][c] = { type:"P", owner:"white", promoted:false };
+        b[6][c] = { type:"P", owner:"black", promoted:false };
+      }
+      return b;
+    },
+    moveSetFor(piece){
+      const dir = forwardDir(piece.owner);
+      if (piece.promoted){
+        if (piece.type === "B") return { slides: DIRS_DIAG, steps: DIRS_ORTHO };
+        if (piece.type === "R") return { slides: DIRS_ORTHO, steps: DIRS_DIAG };
+        return { steps: goldSteps(dir) };
+      }
+      switch (piece.type){
+        case "P": return { steps: [[dir,0]] };
+        case "L": return { slides: [[dir,0]] };
+        case "N": return { steps: [[2*dir,-1],[2*dir,1]] };
+        case "S": return { steps: [[dir,-1],[dir,0],[dir,1],[-dir,-1],[-dir,1]] };
+        case "G": return { steps: goldSteps(dir) };
+        case "K": return { steps: DIRS_ALL8 };
+        case "B": return { slides: DIRS_DIAG };
+        case "R": return { slides: DIRS_ORTHO };
+      }
+    },
+    isPromotable(piece){ return ["P","L","N","S","B","R"].includes(piece.type) && !piece.promoted; },
+    inZone(owner, row){ return owner === "black" ? row <= 2 : row >= CFG.ROWS - 3; },
+    mustPromote(piece, destRow){
+      if (piece.type === "P" || piece.type === "L"){
+        return piece.owner === "black" ? destRow === 0 : destRow === CFG.ROWS - 1;
+      }
+      if (piece.type === "N"){
+        return piece.owner === "black" ? destRow <= 1 : destRow >= CFG.ROWS - 2;
+      }
+      return false;
+    },
+    isDropLegal(bd, hands, player, type, r, c, checkUchi){
+      if (bd[r][c]) return false;
+      if (type === "P"){
+        for (let i=0;i<CFG.ROWS;i++){
+          const p = bd[i][c];
+          if (p && p.owner === player && p.type === "P" && !p.promoted) return false;
+        }
+        if (player === "black" && r === 0) return false;
+        if (player === "white" && r === CFG.ROWS-1) return false;
+      }
+      if (type === "L"){
+        if (player === "black" && r === 0) return false;
+        if (player === "white" && r === CFG.ROWS-1) return false;
+      }
+      if (type === "N"){
+        if (player === "black" && r <= 1) return false;
+        if (player === "white" && r >= CFG.ROWS-2) return false;
+      }
+      const nb = bd.map(row => row.map(cell => cell ? Object.assign({}, cell) : null));
+      nb[r][c] = { type: type, owner: player, promoted: false };
+      if (isInCheck(nb, player)) return false;
+      if (type === "P" && checkUchi !== false){
+        const opp = other(player);
+        if (isInCheck(nb, opp)){
+          const oppMoves = allLegalMoves(nb, hands, opp, false);
+          if (oppMoves.length === 0) return false; // illegal: pawn-drop checkmate
+        }
+      }
+      return true;
     }
-    switch (piece.type){
-      case "P": return { steps: [[dir,0]] };
-      case "L": return { slides: [[dir,0]] };
-      case "N": return { steps: [[2*dir,-1],[2*dir,1]] };
-      case "S": return { steps: [[dir,-1],[dir,0],[dir,1],[-dir,-1],[-dir,1]] };
-      case "G": return { steps: goldSteps(dir) };
-      case "K": return { steps: DIRS_ALL8 };
-      case "B": return { slides: DIRS_DIAG };
-      case "R": return { slides: DIRS_ORTHO };
+  };
+
+  const DOBUTSU_CONFIG = {
+    id: "dobutsu", label: "Dobutsu Shogi",
+    ROWS: 4, COLS: 3, cellSize: 100,
+    royalType: "L", hasTryRule: true, noDrawOnStalemate: true, showStarPoints: false,
+    handOrder: ["G","E","C"],
+    legend: `<b>L</b> Lion &nbsp; <b>G</b> Giraffe &nbsp; <b>E</b> Elephant &nbsp; <b>C</b> Chick
+      <br>A Chick reaching the far row promotes to a Hen (shown as <span class="plus">+C</span>).
+      Marching your Lion safely into the opponent's home row is an instant win.`,
+    baseValue: { L:0, G:4, E:4, C:2 },
+    promotedValue: { C:6 },
+    difficulty: {
+      easy:   { depth:0, timeMs:0 },
+      medium: { depth:4, timeMs:500 },
+      hard:   { depth:7, timeMs:1500 }
+    },
+    initialBoard(){
+      const b = Array.from({length:4}, () => Array(3).fill(null));
+      b[0][0] = { type:"G", owner:"white", promoted:false };
+      b[0][1] = { type:"L", owner:"white", promoted:false };
+      b[0][2] = { type:"E", owner:"white", promoted:false };
+      b[1][1] = { type:"C", owner:"white", promoted:false };
+      b[2][1] = { type:"C", owner:"black", promoted:false };
+      b[3][0] = { type:"E", owner:"black", promoted:false };
+      b[3][1] = { type:"L", owner:"black", promoted:false };
+      b[3][2] = { type:"G", owner:"black", promoted:false };
+      return b;
+    },
+    moveSetFor(piece){
+      const dir = forwardDir(piece.owner);
+      if (piece.type === "C" && piece.promoted) return { steps: goldSteps(dir) }; // Hen
+      switch (piece.type){
+        case "L": return { steps: DIRS_ALL8 };
+        case "G": return { steps: DIRS_ORTHO };
+        case "E": return { steps: DIRS_DIAG };
+        case "C": return { steps: [[dir,0]] };
+      }
+    },
+    isPromotable(piece){ return piece.type === "C" && !piece.promoted; },
+    inZone(owner, row){ return isBackRank(owner, row, CFG.ROWS); },
+    mustPromote(piece, destRow){ return isBackRank(piece.owner, destRow, CFG.ROWS); },
+    isDropLegal(bd, hands, player, type, r, c /*, checkUchi unused: Dobutsu has no drop restrictions */){
+      if (bd[r][c]) return false;
+      const nb = bd.map(row => row.map(cell => cell ? Object.assign({}, cell) : null));
+      nb[r][c] = { type: type, owner: player, promoted: false };
+      if (isInCheck(nb, player)) return false;
+      return true;
     }
-  }
+  };
+
+  // =========================================================
+  // 4. GENERIC RULE ENGINE (reads the active CFG)
+  // =========================================================
 
   function pieceTargets(bd, r, c){
     const piece = bd[r][c];
-    const ms = moveSetFor(piece);
+    const ms = CFG.moveSetFor(piece);
     const targets = [];
     if (ms.steps){
       for (const [dr,dc] of ms.steps){
         const nr = r+dr, nc = c+dc;
-        if (nr<0||nr>8||nc<0||nc>8) continue;
+        if (nr<0||nr>=CFG.ROWS||nc<0||nc>=CFG.COLS) continue;
         const t = bd[nr][nc];
         if (!t || t.owner !== piece.owner) targets.push([nr,nc]);
       }
@@ -237,7 +398,7 @@
     if (ms.slides){
       for (const [dr,dc] of ms.slides){
         let nr = r+dr, nc = c+dc;
-        while (nr>=0 && nr<=8 && nc>=0 && nc<=8){
+        while (nr>=0 && nr<CFG.ROWS && nc>=0 && nc<CFG.COLS){
           const t = bd[nr][nc];
           if (!t){ targets.push([nr,nc]); }
           else { if (t.owner !== piece.owner) targets.push([nr,nc]); break; }
@@ -248,16 +409,16 @@
     return targets;
   }
 
-  function findKing(bd, owner){
-    for (let r=0;r<9;r++) for (let c=0;c<9;c++){
+  function findRoyal(bd, owner){
+    for (let r=0;r<CFG.ROWS;r++) for (let c=0;c<CFG.COLS;c++){
       const p = bd[r][c];
-      if (p && p.owner === owner && p.type === "K") return [r,c];
+      if (p && p.owner === owner && p.type === CFG.royalType) return [r,c];
     }
     return null;
   }
 
   function isSquareAttacked(bd, r, c, byOwner){
-    for (let i=0;i<9;i++) for (let j=0;j<9;j++){
+    for (let i=0;i<CFG.ROWS;i++) for (let j=0;j<CFG.COLS;j++){
       const p = bd[i][j];
       if (p && p.owner === byOwner){
         const targets = pieceTargets(bd, i, j);
@@ -268,29 +429,19 @@
   }
 
   function isInCheck(bd, owner){
-    const k = findKing(bd, owner);
+    const k = findRoyal(bd, owner);
     if (!k) return false;
     return isSquareAttacked(bd, k[0], k[1], other(owner));
-  }
-
-  function mustPromote(piece, destRow){
-    if (piece.type === "P" || piece.type === "L"){
-      return piece.owner === "black" ? destRow === 0 : destRow === 8;
-    }
-    if (piece.type === "N"){
-      return piece.owner === "black" ? destRow <= 1 : destRow >= 7;
-    }
-    return false;
   }
 
   function genMovesForPiece(bd, r, c){
     const piece = bd[r][c];
     const targets = pieceTargets(bd, r, c);
     const moves = [];
-    const promotable = PROMOTABLE.includes(piece.type) && !piece.promoted;
+    const promotable = CFG.isPromotable(piece);
     for (const [tr,tc] of targets){
-      const zoneMove = promotable && (inZone(piece.owner,r) || inZone(piece.owner,tr));
-      const forced = promotable && mustPromote(piece, tr);
+      const zoneMove = promotable && (CFG.inZone(piece.owner,r) || CFG.inZone(piece.owner,tr));
+      const forced = promotable && CFG.mustPromote(piece, tr);
       if (forced){
         moves.push({ from:[r,c], to:[tr,tc], promote:true });
       } else if (zoneMove){
@@ -318,50 +469,19 @@
     return !isInCheck(nb, mover);
   }
 
-  function isDropLegal(bd, hands, player, type, r, c, checkUchi){
-    if (bd[r][c]) return false;
-    if (type === "P"){
-      for (let i=0;i<9;i++){
-        const p = bd[i][c];
-        if (p && p.owner === player && p.type === "P" && !p.promoted) return false;
-      }
-      if (player === "black" && r === 0) return false;
-      if (player === "white" && r === 8) return false;
-    }
-    if (type === "L"){
-      if (player === "black" && r === 0) return false;
-      if (player === "white" && r === 8) return false;
-    }
-    if (type === "N"){
-      if (player === "black" && r <= 1) return false;
-      if (player === "white" && r >= 7) return false;
-    }
-    const nb = bd.map(row => row.map(cell => cell ? Object.assign({}, cell) : null));
-    nb[r][c] = { type: type, owner: player, promoted: false };
-    if (isInCheck(nb, player)) return false;
-    if (type === "P" && checkUchi !== false){
-      const opp = other(player);
-      if (isInCheck(nb, opp)){
-        const oppMoves = allLegalMoves(nb, hands, opp, false);
-        if (oppMoves.length === 0) return false; // illegal: pawn-drop checkmate
-      }
-    }
-    return true;
-  }
-
   function allLegalMoves(bd, hands, player, checkUchi){
     const moves = [];
-    for (let r=0;r<9;r++) for (let c=0;c<9;c++){
+    for (let r=0;r<CFG.ROWS;r++) for (let c=0;c<CFG.COLS;c++){
       const p = bd[r][c];
       if (p && p.owner === player){
         const pm = genMovesForPiece(bd, r, c);
         for (const m of pm) if (isMoveLegal(bd, m, player)) moves.push(m);
       }
     }
-    for (const type of HAND_ORDER){
+    for (const type of CFG.handOrder){
       if (hands[player][type] > 0){
-        for (let r=0;r<9;r++) for (let c=0;c<9;c++){
-          if (!bd[r][c] && isDropLegal(bd, hands, player, type, r, c, checkUchi)){
+        for (let r=0;r<CFG.ROWS;r++) for (let c=0;c<CFG.COLS;c++){
+          if (!bd[r][c] && CFG.isDropLegal(bd, hands, player, type, r, c, checkUchi)){
             moves.push({ drop: type, to:[r,c] });
           }
         }
@@ -370,29 +490,41 @@
     return moves;
   }
 
+  function tryRuleWin(bd, player, move){
+    if (!CFG.hasTryRule || move.drop) return false;
+    const piece = bd[move.from[0]][move.from[1]];
+    if (piece.type !== CFG.royalType) return false;
+    return isBackRank(player, move.to[0], CFG.ROWS);
+  }
+
   // =========================================================
-  // 4. COMPUTER OPPONENT (minimax + alpha-beta + iterative deepening)
+  // 5. COMPUTER OPPONENT (minimax + alpha-beta + iterative deepening)
   // =========================================================
 
-  const BASE_VALUE = { P:1, L:3, N:4, S:5, G:6, B:8, R:10, K:0 };
-  const PROMOTED_VALUE = { P:6, L:6, N:6, S:6, B:10, R:12 };
-  const DIFFICULTY = {
-    easy:   { depth:0, timeMs:0 },    // 0 = pure random, no search
-    medium: { depth:2, timeMs:600 },
-    hard:   { depth:3, timeMs:1800 }
-  };
+  const WIN_SCORE = 100000;
 
-  function pieceValue(p){ return p.promoted ? PROMOTED_VALUE[p.type] : BASE_VALUE[p.type]; }
+  function pieceValue(p){ return p.promoted ? CFG.promotedValue[p.type] : CFG.baseValue[p.type]; }
+
+  function lionAdvanceBonus(bd, owner){
+    const k = findRoyal(bd, owner);
+    if (!k) return 0;
+    const targetRow = owner === "black" ? 0 : CFG.ROWS - 1;
+    const dist = Math.abs(k[0] - targetRow);
+    return (CFG.ROWS - 1 - dist) * 0.4;
+  }
 
   function evaluate(bd, hnds, forPlayer){
     let score = 0;
-    for (let r=0;r<9;r++) for (let c=0;c<9;c++){
+    for (let r=0;r<CFG.ROWS;r++) for (let c=0;c<CFG.COLS;c++){
       const p = bd[r][c];
       if (p){ const v = pieceValue(p); score += (p.owner === forPlayer ? v : -v); }
     }
-    for (const t of HAND_ORDER){
-      score += hnds[forPlayer][t] * BASE_VALUE[t];
-      score -= hnds[other(forPlayer)][t] * BASE_VALUE[t];
+    for (const t of CFG.handOrder){
+      score += hnds[forPlayer][t] * CFG.baseValue[t];
+      score -= hnds[other(forPlayer)][t] * CFG.baseValue[t];
+    }
+    if (CFG.hasTryRule){
+      score += lionAdvanceBonus(bd, forPlayer) - lionAdvanceBonus(bd, other(forPlayer));
     }
     return score;
   }
@@ -419,40 +551,43 @@
     let s = 0;
     if (!m.drop){
       const target = bd[m.to[0]][m.to[1]];
-      if (target) s += pieceValue(target) * 10; // capture ordering
+      if (target) s += pieceValue(target) * 10;
       if (m.promote) s += 3;
     } else {
-      s -= 1; // search drops after board moves
+      s -= 1;
     }
     return s;
   }
   function orderMoves(moves, bd){ moves.sort((a,b) => moveScore(b,bd) - moveScore(a,bd)); }
 
-  // Negamax with alpha-beta. Interior nodes skip the (expensive, rare-impact)
-  // pawn-drop-checkmate check for speed; the root always uses the full,
-  // rule-correct move list so the move actually played is always legal.
   function negamax(bd, hnds, player, depth, alpha, beta, deadline){
     if (depth === 0 || Date.now() > deadline){
       return evaluate(bd, hnds, player);
     }
     const moves = allLegalMoves(bd, hnds, player, false);
     if (moves.length === 0){
-      return isInCheck(bd, player) ? (-100000 - depth) : 0;
+      if (CFG.noDrawOnStalemate) return -(WIN_SCORE + depth);
+      return isInCheck(bd, player) ? -(WIN_SCORE + depth) : 0;
     }
     orderMoves(moves, bd);
     let best = -Infinity;
     for (const m of moves){
-      const { nb, nh } = applySim(bd, hnds, player, m);
-      const val = -negamax(nb, nh, other(player), depth-1, -beta, -alpha, deadline);
+      const val = moveValue(bd, hnds, player, m, depth, alpha, beta, deadline);
       if (val > best) best = val;
       if (best > alpha) alpha = best;
-      if (alpha >= beta) break; // prune
+      if (alpha >= beta) break;
     }
     return best;
   }
 
+  function moveValue(bd, hnds, player, move, depth, alpha, beta, deadline){
+    if (tryRuleWin(bd, player, move)) return WIN_SCORE + depth;
+    const { nb, nh } = applySim(bd, hnds, player, move);
+    return -negamax(nb, nh, other(player), depth-1, -beta, -alpha, deadline);
+  }
+
   function computeAIMove(bd, hnds, player, difficulty){
-    const settings = DIFFICULTY[difficulty] || DIFFICULTY.medium;
+    const settings = CFG.difficulty[difficulty] || CFG.difficulty.medium;
     const rootMoves = allLegalMoves(bd, hnds, player, true);
     if (rootMoves.length === 0) return null;
     if (settings.depth === 0){
@@ -466,8 +601,7 @@
       let currentBest = null, currentBestScore = -Infinity, timedOut = false;
       for (const m of rootMoves){
         if (Date.now() > deadline){ timedOut = true; break; }
-        const { nb, nh } = applySim(bd, hnds, player, m);
-        const val = -negamax(nb, nh, other(player), d-1, -beta, -alpha, deadline);
+        const val = moveValue(bd, hnds, player, m, d, alpha, beta, deadline);
         if (val > currentBestScore){ currentBestScore = val; currentBest = m; }
         if (currentBestScore > alpha) alpha = currentBestScore;
       }
@@ -479,35 +613,30 @@
   }
 
   // =========================================================
-  // 5. GAME STATE
+  // 6. GAME STATE
   // =========================================================
 
   let board, hands, turn, selected, candidateMoves, gameOver, winner, statusMsg, lastMove, pendingMatches;
   let whiteHandSlots = [], blackHandSlots = [];
-  let mode = "pvp";          // 'pvp' or 'cpu'
+  let mode = "pvp";
   let humanSide = "black";
   let difficulty = "medium";
   let aiThinking = false;
 
   function aiSide(){ return other(humanSide); }
   function isAITurn(){ return mode === "cpu" && turn === aiSide() && !gameOver; }
+  function emptyHand(){ const h={}; for (const t of CFG.handOrder) h[t]=0; return h; }
 
-  function initialBoard(){
-    const b = Array.from({length:9}, () => Array(9).fill(null));
-    const back = ["L","N","S","G","K","G","S","N","L"];
-    for (let c=0;c<9;c++){
-      b[0][c] = { type: back[c], owner:"white", promoted:false };
-      b[8][c] = { type: back[c], owner:"black", promoted:false };
-    }
-    b[1][1] = { type:"R", owner:"white", promoted:false };
-    b[1][7] = { type:"B", owner:"white", promoted:false };
-    b[7][1] = { type:"B", owner:"black", promoted:false };
-    b[7][7] = { type:"R", owner:"black", promoted:false };
-    for (let c=0;c<9;c++){
-      b[2][c] = { type:"P", owner:"white", promoted:false };
-      b[6][c] = { type:"P", owner:"black", promoted:false };
-    }
-    return b;
+  function enterGame(id){
+    CFG = id === "shogi" ? SHOGI_CONFIG : DOBUTSU_CONFIG;
+    document.getElementById("gameTitle").textContent = CFG.label;
+    document.getElementById("legend").innerHTML = CFG.legend + `
+      <br>Captured pieces join your hand below the board — click one, then click an empty square to drop it back into play.
+      <br>Mode and difficulty changes apply on the next New Game.`;
+    menuScreen.classList.add("hidden");
+    gameScreen.classList.remove("hidden");
+    applyLayout();
+    newGame();
   }
 
   function newGame(){
@@ -515,11 +644,8 @@
     humanSide = sideSelect.value;
     difficulty = difficultySelect.value;
 
-    board = initialBoard();
-    hands = {
-      black: {P:0,L:0,N:0,S:0,G:0,B:0,R:0},
-      white: {P:0,L:0,N:0,S:0,G:0,B:0,R:0}
-    };
+    board = CFG.initialBoard();
+    hands = { black: emptyHand(), white: emptyHand() };
     turn = "black";
     selected = null;
     candidateMoves = [];
@@ -541,8 +667,8 @@
     }
     const type = selected.piece;
     const list = [];
-    for (let r=0;r<9;r++) for (let c=0;c<9;c++){
-      if (!board[r][c] && isDropLegal(board, hands, turn, type, r, c, true)){
+    for (let r=0;r<CFG.ROWS;r++) for (let c=0;c<CFG.COLS;c++){
+      if (!board[r][c] && CFG.isDropLegal(board, hands, turn, type, r, c, true)){
         list.push({ drop:type, to:[r,c] });
       }
     }
@@ -555,6 +681,7 @@
   }
 
   function applyMoveCommit(move){
+    let movedType = null;
     if (move.drop){
       hands[turn][move.drop]--;
       const [tr,tc] = move.to;
@@ -563,32 +690,50 @@
     } else {
       const [fr,fc] = move.from, [tr,tc] = move.to;
       const piece = board[fr][fc];
+      movedType = piece.type;
       const captured = board[tr][tc];
       if (captured){
         hands[turn][captured.type] = (hands[turn][captured.type] || 0) + 1;
-        if (captured.type === "K"){ gameOver = true; winner = turn; }
+        if (captured.type === CFG.royalType){
+          board[fr][fc] = null;
+          piece.promoted = piece.promoted || move.promote;
+          board[tr][tc] = piece;
+          lastMove = { from: move.from, to: move.to };
+          gameOver = true; winner = turn;
+          clearSelection();
+          statusMsg = "Checkmate — " + cap(winner) + " wins!";
+          render();
+          return;
+        }
       }
       board[fr][fc] = null;
       piece.promoted = piece.promoted || move.promote;
       board[tr][tc] = piece;
       lastMove = { from: move.from, to: move.to };
     }
+
+    if (CFG.hasTryRule && !move.drop && movedType === CFG.royalType && isBackRank(turn, move.to[0], CFG.ROWS)){
+      gameOver = true; winner = turn;
+      clearSelection();
+      statusMsg = cap(winner) + "'s Lion reaches home — " + cap(winner) + " wins!";
+      render();
+      return;
+    }
+
     endTurn();
   }
 
   function endTurn(){
     clearSelection();
-    if (gameOver){
-      statusMsg = "Checkmate — " + cap(winner) + " wins!";
-      render();
-      return;
-    }
     turn = other(turn);
     const chk = isInCheck(board, turn);
     const moves = allLegalMoves(board, hands, turn, true);
     if (moves.length === 0){
       gameOver = true;
-      if (chk){
+      if (CFG.noDrawOnStalemate){
+        winner = other(turn);
+        statusMsg = (chk ? "Checkmate — " : "Stalemate — ") + cap(winner) + " wins!";
+      } else if (chk){
         winner = other(turn);
         statusMsg = "Checkmate — " + cap(winner) + " wins!";
       } else {
@@ -614,12 +759,41 @@
     if (gameOver){ aiThinking = false; return; }
     const move = computeAIMove(board, hands, turn, difficulty);
     aiThinking = false;
-    if (!move){ render(); return; } // shouldn't happen: endTurn already checked for legal moves
+    if (!move){ render(); return; }
     applyMoveCommit(move);
   }
 
   // =========================================================
-  // 6. MOUSE INTERACTION
+  // 7. LAYOUT (recomputed per game, since board sizes differ)
+  // =========================================================
+
+  const SIDE_PAD = 30;
+  const LABEL_PAD = 22;
+  const GAP = 8;
+  let CELL, BOARD_W, BOARD_H, boardX, boardY, whiteHandY, blackHandY, CANVAS_W, CANVAS_H, HAND_H, slotSize, gapX;
+
+  const canvas = document.getElementById("board");
+  const ctx = canvas.getContext("2d");
+
+  function applyLayout(){
+    CELL = CFG.cellSize;
+    BOARD_W = CELL * CFG.COLS;
+    BOARD_H = CELL * CFG.ROWS;
+    slotSize = Math.round(CELL * 0.75);
+    gapX = slotSize + 12;
+    HAND_H = Math.max(90, slotSize + 55);
+    boardX = SIDE_PAD;
+    boardY = HAND_H + GAP + LABEL_PAD;
+    whiteHandY = 0;
+    blackHandY = boardY + BOARD_H + LABEL_PAD + GAP;
+    CANVAS_W = BOARD_W + SIDE_PAD * 2;
+    CANVAS_H = blackHandY + HAND_H;
+    canvas.width = CANVAS_W;
+    canvas.height = CANVAS_H;
+  }
+
+  // =========================================================
+  // 8. MOUSE INTERACTION
   // =========================================================
 
   function getCanvasCoords(evt){
@@ -645,7 +819,7 @@
       const s = slotHit(blackHandSlots, x, y);
       return s ? { kind:"hand", player:"black", piece:s.piece } : null;
     }
-    if (x >= boardX && x < boardX + BOARD_PX && y >= boardY && y < boardY + BOARD_PX){
+    if (x >= boardX && x < boardX + BOARD_W && y >= boardY && y < boardY + BOARD_H){
       const c = Math.floor((x - boardX) / CELL);
       const r = Math.floor((y - boardY) / CELL);
       return { kind:"board", r, c };
@@ -713,7 +887,7 @@
   document.getElementById("resetBtn").addEventListener("click", newGame);
 
   // =========================================================
-  // 7. RENDERING (pieces are pentagons, drawn with canvas paths)
+  // 9. RENDERING (pieces are pentagons, drawn with canvas paths)
   // =========================================================
 
   function drawPentagonPath(c, size){
@@ -728,7 +902,7 @@
   }
 
   function drawPiece(cx, cy, size, piece){
-    const flipped = piece.owner === "white"; // pieces point toward the opponent
+    const flipped = piece.owner === "white";
     ctx.save();
     ctx.translate(cx, cy);
     if (flipped) ctx.rotate(Math.PI);
@@ -756,37 +930,41 @@
 
   function drawBoardFrame(){
     ctx.fillStyle = "#d8ac6d";
-    ctx.fillRect(boardX, boardY, BOARD_PX, BOARD_PX);
+    ctx.fillRect(boardX, boardY, BOARD_W, BOARD_H);
     ctx.save();
     ctx.globalAlpha = 0.06;
     ctx.fillStyle = "#4a3220";
-    for (let i=0;i<9;i++){
-      if (i % 2 === 0) ctx.fillRect(boardX, boardY + i*CELL, BOARD_PX, CELL);
+    for (let i=0;i<CFG.ROWS;i++){
+      if (i % 2 === 0) ctx.fillRect(boardX, boardY + i*CELL, BOARD_W, CELL);
     }
     ctx.restore();
     ctx.lineWidth = 3;
     ctx.strokeStyle = "#4a3220";
-    ctx.strokeRect(boardX, boardY, BOARD_PX, BOARD_PX);
+    ctx.strokeRect(boardX, boardY, BOARD_W, BOARD_H);
   }
 
   function drawGrid(){
     ctx.strokeStyle = "#7a5230";
     ctx.lineWidth = 1;
-    for (let i=1;i<9;i++){
+    for (let i=1;i<CFG.COLS;i++){
       ctx.beginPath();
       ctx.moveTo(boardX + i*CELL, boardY);
-      ctx.lineTo(boardX + i*CELL, boardY + BOARD_PX);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(boardX, boardY + i*CELL);
-      ctx.lineTo(boardX + BOARD_PX, boardY + i*CELL);
+      ctx.lineTo(boardX + i*CELL, boardY + BOARD_H);
       ctx.stroke();
     }
-    ctx.fillStyle = "#4a3220";
-    for (const rr of [3,6]) for (const cc of [3,6]){
+    for (let i=1;i<CFG.ROWS;i++){
       ctx.beginPath();
-      ctx.arc(boardX+cc*CELL, boardY+rr*CELL, 3, 0, Math.PI*2);
-      ctx.fill();
+      ctx.moveTo(boardX, boardY + i*CELL);
+      ctx.lineTo(boardX + BOARD_W, boardY + i*CELL);
+      ctx.stroke();
+    }
+    if (CFG.showStarPoints){
+      ctx.fillStyle = "#4a3220";
+      for (const rr of [3,6]) for (const cc of [3,6]){
+        ctx.beginPath();
+        ctx.arc(boardX+cc*CELL, boardY+rr*CELL, 3, 0, Math.PI*2);
+        ctx.fill();
+      }
     }
   }
 
@@ -795,12 +973,11 @@
     ctx.font = "12px 'Zen Kaku Gothic New', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    for (let c=0;c<9;c++){
-      ctx.fillText(String(9-c), boardX + c*CELL + CELL/2, boardY - LABEL_PAD/2);
+    for (let c=0;c<CFG.COLS;c++){
+      ctx.fillText(String(CFG.COLS-c), boardX + c*CELL + CELL/2, boardY - LABEL_PAD/2);
     }
-    const letters = "abcdefghi";
-    for (let r=0;r<9;r++){
-      ctx.fillText(letters[r], boardX + BOARD_PX + LABEL_PAD/2, boardY + r*CELL + CELL/2);
+    for (let r=0;r<CFG.ROWS;r++){
+      ctx.fillText(String.fromCharCode(97+r), boardX + BOARD_W + LABEL_PAD/2, boardY + r*CELL + CELL/2);
     }
   }
 
@@ -842,7 +1019,7 @@
       ctx.restore();
     }
     if (!gameOver){
-      const k = findKing(board, turn);
+      const k = findRoyal(board, turn);
       if (k && isInCheck(board, turn)){
         const { x, y } = cellCenter(k[0], k[1]);
         ctx.save();
@@ -859,7 +1036,7 @@
   }
 
   function drawPieces(){
-    for (let r=0;r<9;r++) for (let c=0;c<9;c++){
+    for (let r=0;r<CFG.ROWS;r++) for (let c=0;c<CFG.COLS;c++){
       const p = board[r][c];
       if (p){
         const { x, y } = cellCenter(r,c);
@@ -869,7 +1046,7 @@
   }
 
   function drawHandStrip(player, y){
-    const items = HAND_ORDER.filter(t => hands[player][t] > 0);
+    const items = CFG.handOrder.filter(t => hands[player][t] > 0);
     const isActive = (turn === player) && !gameOver;
     ctx.save();
     ctx.fillStyle = isActive ? "rgba(217,178,92,0.16)" : "rgba(0,0,0,0.02)";
@@ -892,10 +1069,8 @@
     ctx.restore();
 
     const slots = [];
-    const slotSize = 46;
     const startX = boardX;
     const startY = y + 30;
-    const gapX = 58;
     for (let i=0;i<items.length;i++){
       const type = items[i];
       const sx = startX + i*gapX;
@@ -948,8 +1123,4 @@
     updateStatusDOM();
   }
 
-  // =========================================================
-  // 8. START
-  // =========================================================
-  newGame();
 })();
