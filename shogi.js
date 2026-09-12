@@ -179,7 +179,7 @@
     </div>
   `;
 
-  const menuScreen = document.getElementById("menuScreen");
+   const menuScreen = document.getElementById("menuScreen");
   const gameScreen = document.getElementById("gameScreen");
   const modeSelect = document.getElementById("modeSelect");
   const sideSelect = document.getElementById("sideSelect");
@@ -189,7 +189,7 @@
   const learningAidsChk = document.getElementById("learningAidsChk");
   const coordsChk = document.getElementById("coordsChk");
   const soundChk = document.getElementById("soundChk");
-
+ 
   modeSelect.addEventListener("change", () => {
     const show = modeSelect.value === "cpu";
     sideLabel.style.display = show ? "flex" : "none";
@@ -201,7 +201,7 @@
   document.getElementById("backBtn").addEventListener("click", () => {
     gameScreen.classList.add("hidden"); menuScreen.classList.remove("hidden");
   });
-
+ 
   // =========================================================
   // 2. PALETTE (light/dark canvas colors)
   // =========================================================
@@ -218,14 +218,14 @@
       moveDot:"rgba(20,14,8,0.4)", captureRing:"rgba(224,104,90,0.8)" }
   };
   let PAL = PALETTES.light;
-
+ 
   // =========================================================
   // 3. GENERIC HELPERS
   // =========================================================
   const DIRS_DIAG = [[-1,-1],[-1,1],[1,-1],[1,1]];
   const DIRS_ORTHO = [[-1,0],[1,0],[0,-1],[0,1]];
   const DIRS_ALL8 = DIRS_ORTHO.concat(DIRS_DIAG);
-
+ 
   function other(p){ return p === "black" ? "white" : "black"; }
   function forwardDir(owner){ return owner === "black" ? -1 : 1; }
   function goldSteps(dir){ return [[dir,-1],[dir,0],[dir,1],[0,-1],[0,1],[-dir,0]]; }
@@ -233,12 +233,12 @@
   function isBackRank(owner, row, rows){ return owner === "black" ? row === 0 : row === rows - 1; }
   function deepBoard(bd){ return bd.map(row => row.map(cell => cell ? Object.assign({}, cell) : null)); }
   function deepHands(h){ return { black: Object.assign({}, h.black), white: Object.assign({}, h.white) }; }
-
+ 
   // =========================================================
   // 4. GAME CONFIGS
   // =========================================================
   let CFG = null;
-
+ 
   const SHOGI_CONFIG = {
     id:"shogi", label:"Shogi", ROWS:9, COLS:9, cellSize:58,
     royalType:"K", hasTryRule:false, noDrawOnStalemate:false, showStarPoints:true, checkRepetition:true,
@@ -326,7 +326,7 @@
       return true;
     }
   };
-
+ 
   const DOBUTSU_CONFIG = {
     id:"dobutsu", label:"Dobutsu Shogi", ROWS:4, COLS:3, cellSize:100,
     royalType:"L", hasTryRule:true, noDrawOnStalemate:true, showStarPoints:false, checkRepetition:false,
@@ -377,7 +377,7 @@
       return true;
     }
   };
-
+ 
   // =========================================================
   // 5. GENERIC RULE ENGINE
   // =========================================================
@@ -476,7 +476,7 @@
     if (piece.type !== CFG.royalType) return false;
     return isBackRank(player, move.to[0], CFG.ROWS);
   }
-
+ 
   // =========================================================
   // 6. COMPUTER OPPONENT
   // =========================================================
@@ -567,7 +567,7 @@
     if (!bestMove) bestMove = rootMoves[Math.floor(Math.random()*rootMoves.length)];
     return bestMove;
   }
-
+ 
   // =========================================================
   // 7. NOTATION + POSITION KEY (for history panel & repetition)
   // =========================================================
@@ -587,7 +587,7 @@
     for (const side of ["black","white"]) for (const t of CFG.handOrder) s += hands[side][t] + ",";
     return s;
   }
-
+ 
   // =========================================================
   // 8. GAME STATE
   // =========================================================
@@ -597,12 +597,12 @@
   let history = [], liveIndex = 0, viewIndex = 0;
   let flipped = false, learningAids = false, hintMove = null;
   let darkMode = false, soundOn = true;
-
+ 
   function aiSide(){ return other(humanSide); }
   function isAITurn(){ return mode==="cpu" && turn===aiSide() && !gameOver; }
   function emptyHand(){ const h={}; for (const t of CFG.handOrder) h[t]=0; return h; }
   function reviewing(){ return viewIndex !== liveIndex; }
-
+ 
   function enterGame(id){
     CFG = id === "shogi" ? SHOGI_CONFIG : DOBUTSU_CONFIG;
     document.getElementById("gameTitle").textContent = CFG.label;
@@ -616,13 +616,13 @@
     newGame();
     maybeShowWalkthrough();
   }
-
+ 
   function newGame(){
     mode = modeSelect.value;
     humanSide = sideSelect.value;
     difficulty = difficultySelect.value;
     learningAids = learningAidsChk.checked;
-
+ 
     board = CFG.initialBoard();
     hands = { black: emptyHand(), white: emptyHand() };
     turn = "black";
@@ -636,14 +636,14 @@
     render();
     maybeTriggerAI();
   }
-
+ 
   function snapshotNow(notation){
     return {
       board: deepBoard(board), hands: deepHands(hands), turn, gameOver, winner, statusMsg, lastMove,
       notation, posKey: CFG.checkRepetition ? positionKey() : null
     };
   }
-
+ 
   function finalizeMove(notation){
     if (liveIndex < history.length - 1) history.length = liveIndex + 1;
     history.push(snapshotNow(notation));
@@ -652,7 +652,7 @@
     updateHistoryPanel();
     if (gameOver) recordStats();
   }
-
+ 
   function restoreSnapshot(idx){
     const snap = history[idx];
     board = deepBoard(snap.board); hands = deepHands(snap.hands);
@@ -661,7 +661,7 @@
     clearSelection(); hintMove = null;
     render();
   }
-
+ 
   function movesFromSelection(){
     if (!selected) return [];
     if (selected.kind === "board"){
@@ -676,7 +676,7 @@
     return list;
   }
   function clearSelection(){ selected = null; candidateMoves = []; }
-
+ 
   function applyMoveCommit(move){
     let movedType = null, captured = null, fromRC = null, toRC = move.to;
     if (move.drop){
@@ -712,7 +712,7 @@
       playSound(captured ? "capture" : "move");
       startSlideAnimation(animFrom, animTo, animPiece);
     }
-
+ 
     if (CFG.hasTryRule && !move.drop && movedType === CFG.royalType && isBackRank(turn, move.to[0], CFG.ROWS)){
       gameOver = true; winner = turn;
       clearSelection(); hintMove = null;
@@ -722,17 +722,17 @@
       render();
       return;
     }
-
+ 
     hintMove = null;
     endTurn(notationFor(move, movedType, !!captured));
   }
-
+ 
   function endTurn(notation){
     clearSelection();
     turn = other(turn);
     const chk = isInCheck(board, turn);
     const moves = allLegalMoves(board, hands, turn, true);
-
+ 
     if (CFG.checkRepetition){
       const key = positionKey();
       let count = 1;
@@ -745,7 +745,7 @@
         return;
       }
     }
-
+ 
     if (moves.length === 0){
       gameOver = true;
       if (CFG.noDrawOnStalemate){
@@ -768,7 +768,7 @@
     render();
     maybeTriggerAI();
   }
-
+ 
   function maybeTriggerAI(){
     if (!isAITurn()) return;
     aiThinking = true; statusMsg = "Computer is thinking..."; render();
@@ -781,7 +781,7 @@
     if (!move){ render(); return; }
     applyMoveCommit(move);
   }
-
+ 
   // ---- Undo / Redo ----
   function undo(){
     if (liveIndex <= 0) return;
@@ -799,7 +799,7 @@
     restoreSnapshot(liveIndex);
     maybeTriggerAI();
   }
-
+ 
   // ---- Resign ----
   function doResign(){
     if (gameOver) return;
@@ -812,7 +812,7 @@
     playSound("win");
     render();
   }
-
+ 
   // ---- History panel ----
   function updateHistoryPanel(){
     const tbl = document.getElementById("historyTable");
@@ -851,7 +851,7 @@
     updateHistoryPanel();
     updateReviewBanner();
   });
-
+ 
   // ---- Stats (localStorage) ----
   function loadStats(){
     try { return JSON.parse(localStorage.getItem("shogi_stats_v1")) || {}; } catch(e){ return {}; }
@@ -881,7 +881,7 @@
     html += "</table>";
     document.getElementById("statsTable").innerHTML = html;
   }
-
+ 
   // ---- Save / Load (compact shareable code, not a standard format) ----
   function encodeGameCode(){
     const payload = { g: CFG.id, m: mode, s: humanSide, d: difficulty, b: board, h: hands, t: turn, go: gameOver, w: winner };
@@ -911,16 +911,16 @@
     render();
     maybeTriggerAI();
   }
-
+ 
   // =========================================================
   // 9. LAYOUT
   // =========================================================
   const SIDE_PAD = 30, LABEL_PAD = 22, GAP = 8;
   let CELL, BOARD_W, BOARD_H, boardX, boardY, whiteHandY, blackHandY, CANVAS_W, CANVAS_H, HAND_H, slotSize, gapX;
-
+ 
   const canvas = document.getElementById("board");
   const ctx = canvas.getContext("2d");
-
+ 
   function applyLayout(){
     CELL = CFG.cellSize;
     BOARD_W = CELL * CFG.COLS; BOARD_H = CELL * CFG.ROWS;
@@ -931,7 +931,7 @@
     CANVAS_W = BOARD_W + SIDE_PAD*2; CANVAS_H = blackHandY + HAND_H;
     canvas.width = CANVAS_W; canvas.height = CANVAS_H;
   }
-
+ 
   // =========================================================
   // 10. AUDIO (synthesized, no external files)
   // =========================================================
@@ -956,7 +956,7 @@
     else if (kind === "check"){ tone(720,0.09,"square",0.07); setTimeout(()=>tone(500,0.11,"square",0.07), 90); }
     else if (kind === "win"){ [523,659,784].forEach((f,i)=>setTimeout(()=>tone(f,0.22,"sine",0.11), i*110)); }
   }
-
+ 
   // =========================================================
   // 11. PIECE SLIDE ANIMATION (decorative overlay, non-blocking)
   // =========================================================
@@ -974,7 +974,7 @@
     if (t < 1) requestAnimationFrame(stepAnimation);
     else anim = null;
   }
-
+ 
   // =========================================================
   // 12. MOUSE / DRAG INTERACTION
   // =========================================================
@@ -1009,7 +1009,7 @@
   function interactionBlocked(){
     return gameOver || pendingMatches || aiThinking || isAITurn() || reviewing();
   }
-
+ 
   function tryCommitToZone(zone){
     if (selected){
       const matches = candidateMoves.filter(m => m.to[0]===zone.r && m.to[1]===zone.c);
@@ -1027,9 +1027,9 @@
     } else { clearSelection(); }
     render();
   }
-
+ 
   let dragStart = null, dragging = null, suppressNextClick = false;
-
+ 
   canvas.addEventListener("mousedown", (e) => {
     ensureAudio();
     if (interactionBlocked()) return;
@@ -1063,7 +1063,7 @@
     dragStart = null;
   });
   canvas.addEventListener("mouseleave", () => { if (dragging){ dragging=null; render(); } dragStart=null; });
-
+ 
   canvas.addEventListener("click", (e) => {
     if (suppressNextClick){ suppressNextClick=false; return; }
     ensureAudio();
@@ -1081,7 +1081,7 @@
     }
     tryCommitToZone(zone);
   });
-
+ 
   document.getElementById("promoYes").addEventListener("click", () => {
     const m = pendingMatches.find(mv => mv.promote === true);
     pendingMatches = null; document.getElementById("promoModal").classList.add("hidden");
@@ -1106,7 +1106,7 @@
   document.getElementById("resignNo").addEventListener("click", () => {
     document.getElementById("resignModal").classList.add("hidden");
   });
-
+ 
   learningAidsChk.addEventListener("change", () => {
     learningAids = learningAidsChk.checked;
     document.getElementById("hintRow").classList.toggle("hidden", !learningAids);
@@ -1114,20 +1114,20 @@
   });
   coordsChk.addEventListener("change", render);
   soundChk.addEventListener("change", () => { soundOn = soundChk.checked; });
-
+ 
   document.getElementById("hintBtn").addEventListener("click", () => {
     if (interactionBlocked()) return;
     hintMove = computeAIMove(board, hands, turn, "medium");
     render();
   });
-
+ 
   document.getElementById("darkModeBtn").addEventListener("click", () => {
     darkMode = !darkMode;
     document.body.classList.toggle("dark", darkMode);
     PAL = darkMode ? PALETTES.dark : PALETTES.light;
     render();
   });
-
+ 
   document.getElementById("statsBtn").addEventListener("click", () => {
     renderStatsTable();
     document.getElementById("statsModal").classList.remove("hidden");
@@ -1136,7 +1136,7 @@
   document.getElementById("statsResetBtn").addEventListener("click", () => {
     saveStats({}); renderStatsTable();
   });
-
+ 
   document.getElementById("copyCodeBtn").addEventListener("click", () => {
     const code = encodeGameCode();
     const msg = document.getElementById("shareMsg");
@@ -1154,7 +1154,7 @@
     try { loadGameCode(val); msg.textContent = "Loaded!"; setTimeout(()=>msg.textContent="", 2000); }
     catch(e){ msg.textContent = "That code didn't look right."; }
   });
-
+ 
   document.getElementById("helpBtn").addEventListener("click", showWalkthrough);
   document.getElementById("walkthroughDone").addEventListener("click", () => {
     document.getElementById("walkthroughModal").classList.add("hidden");
@@ -1171,7 +1171,7 @@
     try { seen = !!localStorage.getItem("shogi_walkthrough_seen_"+CFG.id); } catch(e){}
     if (!seen) showWalkthrough();
   }
-
+ 
   // =========================================================
   // 13. RENDERING
   //
@@ -1191,7 +1191,7 @@
     const [sr, sc] = screenRC(r, c);
     return { x: boardX + sc*CELL, y: boardY + sr*CELL };
   }
-
+ 
   function drawPentagonPath(c, size){
     const hw=size*0.5, h=size;
     c.beginPath();
@@ -1199,7 +1199,11 @@
     c.closePath();
   }
   function drawPiece(cx, cy, size, piece){
-    const flip = piece.owner === "white";
+    // A piece's orientation is fixed relative to the physical board (it points
+    // away from its own owner). Flipping the board view flips how that looks
+    // from here, same as walking around a real table -- hence the XOR with
+    // the board-level `flipped` state, not just the owner check alone.
+    const flip = (piece.owner === "white") !== flipped;
     ctx.save();
     ctx.translate(cx, cy);
     if (flip) ctx.rotate(Math.PI);
@@ -1210,7 +1214,7 @@
     ctx.strokeStyle = piece.promoted ? PAL.seal : PAL.frame;
     ctx.stroke();
     ctx.restore();
-
+ 
     ctx.save();
     ctx.fillStyle = piece.promoted ? PAL.seal : PAL.inkText;
     ctx.font = "bold " + Math.round(size*0.34) + "px 'Shippori Mincho', Georgia, serif";
@@ -1218,7 +1222,7 @@
     ctx.fillText((piece.promoted?"+":"") + piece.type, cx, cy + size*0.03);
     ctx.restore();
   }
-
+ 
   function drawBoardFrame(){
     ctx.fillStyle = PAL.board;
     ctx.fillRect(boardX, boardY, BOARD_W, BOARD_H);
@@ -1345,7 +1349,7 @@
     ctx.fillRect(0, y, CANVAS_W, HAND_H);
     if (isActive){ ctx.strokeStyle = PAL.handActiveBorder; ctx.lineWidth = 2; ctx.strokeRect(2,y+2,CANVAS_W-4,HAND_H-4); }
     ctx.restore();
-
+ 
     ctx.save();
     ctx.fillStyle = PAL.label; ctx.font = "13px 'Zen Kaku Gothic New', sans-serif";
     ctx.textAlign = "left"; ctx.textBaseline = "top";
@@ -1353,7 +1357,7 @@
     if (mode==="cpu" && player===aiSide()) label += " (computer)";
     ctx.fillText(label, boardX, y+8);
     ctx.restore();
-
+ 
     const slots = [];
     const startX = boardX, startY = y+30;
     for (let i=0;i<items.length;i++){
@@ -1388,7 +1392,7 @@
     document.getElementById("resignBtn").disabled = gameOver;
     updateReviewBanner();
   }
-
+ 
   function render(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     const topPlayer = flipped ? "black" : "white";
@@ -1403,6 +1407,6 @@
     drawHandStrip(bottomPlayer, blackHandY);
     updateStatusDOM();
   }
-
+ 
   // Menu is shown by default; enterGame() starts a game when the person picks one.
 })();
